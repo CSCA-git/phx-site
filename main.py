@@ -14,7 +14,7 @@ st.set_page_config(
 
 # --- ACCESS KEYS ---
 GITHUB_TOKEN = "GITHUB_TOKEN"
-REPO_NAME = "CSCA-PROG/CSCA-AI-1"
+REPO_NAME = st.secrets.get("CSCA-git/the_db")
 FILE_PATH = "db.json"
 
 # --- DATABASE INTEGRATION ---
