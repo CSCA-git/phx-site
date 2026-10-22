@@ -1,7 +1,7 @@
 import streamlit as st
 import json
 import time
-from github import Auth, Github
+from github import Github
 from g4f.client import Client
 
 # --- PAGE CONFIGURATION ---
@@ -13,15 +13,15 @@ st.set_page_config(
 )
 
 # --- ACCESS KEYS ---
-GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
-REPO_NAME = st.secrets.get("REPO_NAME", "CSCA-git/the_db")
+GITHUB_TOKEN = "GITHUB_TOKEN"
+REPO_NAME = "CSCA-PROG/CSCA-AI-1"
 FILE_PATH = "db.json"
 
 # --- DATABASE INTEGRATION ---
 @st.cache_resource
 def get_github_repo():
-    auth = Auth.Token(GITHUB_TOKEN)
-    return Github(auth=auth).get_repo(REPO_NAME)
+    g = Github(GITHUB_TOKEN)
+    return g.get_repo(REPO_NAME)
 
 def load_db():
     try:
@@ -35,12 +35,14 @@ def load_db():
 def save_db(data, sha=None):
     try:
         repo = get_github_repo()
+        # Получаем самый свежий SHA файла перед обновлением, чтобы избежать ошибки 409
         contents = repo.get_contents(FILE_PATH, ref="main")
+
         result = repo.update_file(
-            path=FILE_PATH, 
+            path=FILE_PATH,
             message="Auto-update DB via Streamlit",
             content=json.dumps(data, indent=4, ensure_ascii=False),
-            sha=contents.sha,
+            sha=contents.sha,  # Используем свежий SHA с сервера
             branch="main"
         )
         return result["content"].sha
@@ -87,23 +89,23 @@ st.markdown("""
         --crimson: #E4483C;
     }
 
-    html, body, [class*="css"], .stApp { 
-        font-family: 'Inter', sans-serif !important; 
-        color: var(--ink) !important; 
-        background-color: var(--paper) !important; 
+    html, body, [class*="css"], .stApp {
+        font-family: 'Inter', sans-serif !important;
+        color: var(--ink) !important;
+        background-color: var(--paper) !important;
     }
 
-    h1, h2, h3, h4, h5, h6 { 
-        font-family: 'Source Serif 4', serif !important; 
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Source Serif 4', serif !important;
         color: var(--lacquer-dark) !important;
-        letter-spacing: -0.01em; 
+        letter-spacing: -0.01em;
     }
 
     p, span, label, div { color: var(--ink); }
 
-    div[data-baseweb="input"] > div, 
+    div[data-baseweb="input"] > div,
     div[data-baseweb="select"] > div,
-    .stTextInput input, 
+    .stTextInput input,
     .stSelectbox div[role="combobox"],
     textarea {
         background-color: #FFFFFF !important;
@@ -196,9 +198,9 @@ st.markdown("""
 
     .hairline { border: none; border-top: 1px solid var(--hairline); margin: 28px 0; }
 
-    section[data-testid="stSidebar"] { 
-        background: var(--paper-alt) !important; 
-        border-right: 1px solid var(--hairline); 
+    section[data-testid="stSidebar"] {
+        background: var(--paper-alt) !important;
+        border-right: 1px solid var(--hairline);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -372,7 +374,7 @@ elif st.session_state.page == "dashboard" and st.session_state.logged_in:
     ])
 
     # -------------------------------------------------------------
-    # TAB 1: QUICK AI PRACTICE
+    # TAB 1: QUICK AI PRACTICE (SINGLE QUESTIONS)
     # -------------------------------------------------------------
     with dash_t1:
         st.write("Generate quick single questions to build up your streak and earn fast XP!")
@@ -459,7 +461,7 @@ EXPLANATION: [Step-by-step solution]"""
                             st.session_state.quiz_data = None
 
     # -------------------------------------------------------------
-    # TAB 2: DYNAMIC AI FULL MOCK EXAM
+    # TAB 2: DYNAMIC AI FULL MOCK EXAM (ANY SUBJECT & TOPIC)
     # -------------------------------------------------------------
     with dash_t2:
         st.markdown("### 🏛️ Dynamic AI Full Mock Exam Generator")
@@ -468,7 +470,7 @@ EXPLANATION: [Step-by-step solution]"""
         col_cfg1, col_cfg2 = st.columns(2)
         with col_cfg1:
             exam_subject = st.selectbox("Select Exam Subject:", [
-                "Mathematics", "Physics", "Chemistry", "Biology", 
+                "Mathematics", "Physics", "Chemistry", "Biology",
                 "CSCA General Science", "Chinese History & Culture", "Computer Science"
             ])
         with col_cfg2:
@@ -490,10 +492,9 @@ Output ONLY the JSON array and no other text or markdown codeblocks."""
                     response = client.chat.completions.create(model="gemini", messages=[{"role": "user", "content": exam_prompt}])
                     raw_txt = response.choices[0].message.content.strip()
                     if raw_txt.startswith("```json"): raw_txt = raw_txt.replace("```json", "").replace("```", "").strip()
-                    elif raw_txt.startswith("```"): raw_txt = raw_txt.replace("```", "").strip()
-                    
+
                     generated_bank = json.loads(raw_txt)
-                    
+
                     st.session_state.full_exam_active = True
                     st.session_state.exam_bank = generated_bank
                     st.session_state.exam_answers = [None] * len(generated_bank)
@@ -512,7 +513,7 @@ Output ONLY the JSON array and no other text or markdown codeblocks."""
             curr_idx = st.session_state.exam_current
 
             elapsed = int(time.time() - st.session_state.exam_start_time)
-            remaining = max(0, (20 * 60) - elapsed)
+            remaining = max(0, (20 * 60) - elapsed) # 20 mins for 10 q
             mins, secs = remaining // 60, remaining % 60
             st.markdown(f"⏱️ **Time Remaining:** `{mins:02d}:{secs:02d}` | 📊 **Progress:** {sum(1 for a in st.session_state.exam_answers if a is not None)}/{len(q_bank)} Answered")
 
@@ -530,7 +531,7 @@ Output ONLY the JSON array and no other text or markdown codeblocks."""
 
                 opts = q_obj["choices"]
                 curr_selected = st.session_state.exam_answers[curr_idx]
-                
+
                 selected_opt = st.radio("Choose Option:", opts, key=f"radio_ai_q_{curr_idx}")
                 st.session_state.exam_answers[curr_idx] = opts.index(selected_opt)
 
@@ -556,7 +557,7 @@ Output ONLY the JSON array and no other text or markdown codeblocks."""
             else:
                 correct_count = sum(1 for i in range(len(q_bank)) if st.session_state.exam_answers[i] == q_bank[i]["correct"])
                 total_score = int((correct_count / len(q_bank)) * 100)
-                
+
                 st.balloons()
                 st.success(f"🎉 Exam Submitted! Your Score: **{total_score} / 100** ({correct_count}/{len(q_bank)} Correct)")
                 user_profile["xp"] += total_score
@@ -623,7 +624,7 @@ Help them prepare for the CSCA exam. Be engaging, praise progress, and act as a 
     # -------------------------------------------------------------
     with dash_t4:
         st.markdown("### 📐 CSCA Comprehensive Formula Library & Smart Finder")
-        
+
         st.info("🤖 **AI Formula Finder:** Type what you need to calculate across any subject (Math, Physics, Chemistry, CS), and AI will extract the exact formula.")
         formula_query = st.text_input("Search Formula by Problem Description:", placeholder="e.g. ideal gas law or projectile motion max height")
         if formula_query:
@@ -638,7 +639,7 @@ Help them prepare for the CSCA exam. Be engaging, praise progress, and act as a 
                     st.error(f"Error finding formula: {e}")
 
         st.markdown("<hr class='hairline'>", unsafe_allow_html=True)
-        
+
         f_tab1, f_tab2, f_tab3 = st.tabs(["Mathematics", "Physics", "Chemistry"])
         with f_tab1:
             st.markdown("#### Algebra & Quadratic Equations")
